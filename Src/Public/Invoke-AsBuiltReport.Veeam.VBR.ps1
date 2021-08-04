@@ -105,6 +105,25 @@ function Invoke-AsBuiltReport.Veeam.VBR {
                 Throw "Failed to connect to Veeam BR Host '$System' with user '$env:USERNAME'"
             }
             #endregion
+
+            #region: Collect and filter Repos
+            [Array]$AllRepos = Get-VBRBackupRepository | Where-Object {$_.Type -notmatch "SanSnapshotOnly"}    # Get all Repositories Except SAN
+            [Array]$CloudRepos = $AllRepos | Where-Object {$_.Type -match "Cloud"}    # Get all Cloud Repositories
+            [Array]$repoList = $AllRepos | Where-Object {$_.Type -notmatch "Cloud"}    # Get all Repositories Except SAN and Cloud
+            <#
+            Thanks to Bernd Leinfelder for the Scalouts Part!
+            https://github.com/berndleinfelder
+            #>
+            [Array]$scaleouts = Get-VBRBackupRepository -scaleout
+            if ($scaleouts) {
+                foreach ($scaleout in $scaleouts) {
+                    $extents = Get-VBRRepositoryExtent -Repository $scaleout
+                    foreach ($ex in $extents) {
+                        $repoList = $repoList + $ex.repository
+                    }
+                }
+            }
+            #endregion
 	}
 	#endregion foreach loop
 }
