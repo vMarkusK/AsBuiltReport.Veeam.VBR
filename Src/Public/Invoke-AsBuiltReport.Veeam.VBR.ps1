@@ -186,6 +186,38 @@ function Invoke-AsBuiltReport.Veeam.VBR {
                     }
                 }
 
+                #region Report
+
+                Section -Style Heading2 'Veeam Backup & Replication Server' {
+                    Paragraph "The following sections detail the configuration of VBR Server '$System'"
+                    BlankLine
+                    # Gather basic  Server Information
+                    $VBRServerInfo = [PSCustomObject]@{
+                        'vCenter Server' = $System
+                        'Version' = $VbrVersion
+                    }
+                    $TableParams = @{
+                        Name = "VBR Server Summary - $System"
+                        ColumnWidths = 20, 20, 20, 20, 20
+                    }
+                    if ($Report.ShowTableCaptions) {
+                        $TableParams['Caption'] = "- $($TableParams.Name)"
+                    }
+                    $VBRServerInfo | Table @TableParams
+                }
+
+                Section -Style Heading3 'Repositories' {
+                    $TableParams = @{
+                        Name = "Repositories - $System"
+                        ColumnWidths = 25, 25, 25, 25
+                    }
+                    if ($Report.ShowTableCaptions) {
+                        $TableParams['Caption'] = "- $($TableParams.Name)"
+                    }
+                    $RepoReport | Table @TableParams
+                }
+                #endreion
+
             }
             #endregion
 	}
