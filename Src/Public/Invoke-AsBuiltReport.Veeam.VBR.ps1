@@ -124,6 +124,70 @@ function Invoke-AsBuiltReport.Veeam.VBR {
                 }
             }
             #endregion
+
+            #region: Repository
+            if ($VbrVersion -ge 11) {
+                $RepoData = $repoList | Get-vPCRepoInfo
+            }
+            else {
+                $RepoData = $repoList | Get-vPCRepoInfoPre11
+            }
+            $RepoReport = @()
+            ForEach ($RawRepo in $RepoData){
+                If ($RawRepo.FreePercentage -lt $repoCritical) {$Status = "Critical"}
+                ElseIf ($RawRepo.FreePercentage -lt $repoWarn) {$Status = "Warning"}
+                ElseIf ($RawRepo.FreePercentage -eq "Unknown") {$Status = "Unknown"}
+                Else {$Status = "OK"}
+                $Object = "" | Select-Object "Repository Name", "Free (GB)", "Total (GB)", "Free (%)", "Status"
+                $Object."Repository Name" = $RawRepo.Target
+                $Object."Free (GB)" = $RawRepo.StorageFree
+                $Object."Total (GB)" = $RawRepo.StorageTotal
+                $Object."Free (%)" = $RawRepo.FreePercentage
+                $Object."Status" = $Status
+
+                $RepoReport += $Object
+                }
+
+            <#
+            Thanks to Chris Arceneaux for his Cloud Repo Snippet
+            https://forums.veeam.com/powershell-f26/veeam-cloud-repository-disk-space-report-t63332.html
+            #>
+            if ($CloudRepos) {
+                Write-Debug "Cloud Repo Section Entered..."
+                $CloudProviders = Get-VBRCloudProvider
+
+                foreach ($CloudProvider in $CloudProviders){
+                    if ($CloudProvider.Resources){
+                        foreach ($CloudProviderRessource in $CloudProvider.Resources){
+                            $CloudRepo = $CloudRepos | Where-Object {($_.CloudProvider.HostName -eq $CloudProvider.DNSName) -and ($_.Name -eq $CloudProviderRessource.RepositoryName)}
+                            $totalSpaceGb = [Math]::Round([Decimal]$CloudProviderRessource.RepositoryAllocatedSpace/1KB,2)
+                            #$totalUsedGb = [Math]::Round([Decimal]([Veeam.Backup.Core.CBackupRepository]::GetRepositoryBackupsSize($CloudRepo.Id.Guid))/1GB,2)
+                            if ($VbrVersion -ge 10) {
+                                $totalUsedGb = [Math]::Round([Decimal]([Veeam.Backup.Core.CBackupRepository]::GetRepositoryBackupsSize($CloudRepo.Id.Guid))/1GB,2)
+                            }
+                            else {
+                                $totalUsedGb = [Math]::Round([Decimal]([Veeam.Backup.Core.CBackupRepository]::GetRepositoryStoragesSize($CloudRepo.Id.Guid))/1GB,2)
+                            }
+                            $totalFreeGb = [Math]::Round($totalSpaceGb - $totalUsedGb,2)
+                            $freePercentage = [Math]::Round(($totalFreeGb/$totalSpaceGb)*100)
+                            If ($freePercentage -lt $repoCritical) {$Status = "Critical"}
+                            ElseIf ($freePercentage -lt $repoWarn) {$Status = "Warning"}
+                            ElseIf ($freePercentage -eq "Unknown") {$Status = "Unknown"}
+                            Else {$Status = "OK"}
+                            $Object = "" | Select-Object "Repository Name", "Free (GB)", "Total (GB)", "Free (%)", "Status"
+                            $Object."Repository Name" = $CloudProviderRessource.RepositoryName
+                            $Object."Free (GB)" = $totalFreeGb
+                            $Object."Total (GB)" = $totalSpaceGb
+                            $Object."Free (%)" = $freePercentage
+                            $Object."Status" = $Status
+
+                            $RepoReport += $Object
+                        }
+                    }
+                }
+
+            }
+            #endregion
 	}
 	#endregion foreach loop
 }
